@@ -66,5 +66,4 @@ int main() {
         close(p2[0]);
         exit(0);
     }
->>>>>>> Stashed changes
 }
