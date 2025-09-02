@@ -432,3 +432,38 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return -1;
   }
 }
+
+void
+raw_vmprint(pagetable_t pagetable, int Layer)
+{
+  // 遍历页表的每一项
+  for(int i = 0 ; i < 512 ; ++i){
+    pte_t pte = pagetable[i];
+
+    // 如果当前的pte指向的是更低一级的页表
+    if((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0){
+      // 从PTE中解析出物理地址，并打印指定数量的缩进符
+      // 注意解析物理地址时，不能只是简单地将权限位移除出去，还应该左移12位，让出页内偏移量
+      uint64 phaddr = (pte >> 10) << 12;
+      for( ; Layer != 0 ; --Layer)
+        printf(".. ");
+
+      // 打印本级页表信息，向孩子页表递归，注意层数+1
+      printf("..%d: pte %p pa %p\n", i, pte, phaddr);
+      uint64 child = PTE2PA(pte);
+      raw_vmprint((pagetable_t)child, Layer + 1);
+    }
+
+    // 如果当前PTE指向的是叶级页表
+    // 取出物理地址并打印信息，随后返回
+    else if (pte & PTE_V){
+      uint64 phaddr = (pte >> 10) << 12;
+      printf(".. .. ..%d: pte %p pa %p\n", i, pte, phaddr);
+    }
+  }
+}
+
+void vmprint(pagetable_t pagetable)
+{
+  raw_vmprint(pagetable, 0);
+}
