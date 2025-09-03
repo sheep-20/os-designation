@@ -245,6 +245,17 @@ r_stval()
   return x;
 }
 
+//Start backtrace
+// read the current frame pointer from s0 register
+static inline uint64
+r_fp()
+{
+  uint64 x;
+  asm volatile("mv %0, s0" : "=r" (x) );
+  return x;
+}
+//End backtrace
+
 // Machine-mode Counter-Enable
 static inline void 
 w_mcounteren(uint64 x)
