@@ -188,8 +188,8 @@ UPROGS=\
 	$U/_grind\
 	$U/_wc\
 	$U/_zombie\
-	$U/_lab4_q5\
-        $U/_lab4_q6\
+	$U/_alarmtest\
+
 
 
 
@@ -408,3 +408,4 @@ myapi.key:
 
 
 .PHONY: handin tarball tarball-pref clean grade handin-check
+
