@@ -379,14 +379,14 @@ bmap(struct inode *ip, uint bn)
 {
   uint addr, *a;
   struct buf *bp;
-
+ 
   if(bn < NDIRECT){
     if((addr = ip->addrs[bn]) == 0)
       ip->addrs[bn] = addr = balloc(ip->dev);
     return addr;
   }
   bn -= NDIRECT;
-
+ 
   if(bn < NINDIRECT){
     // Load indirect block, allocating if necessary.
     if((addr = ip->addrs[NDIRECT]) == 0)
@@ -400,7 +400,38 @@ bmap(struct inode *ip, uint bn)
     brelse(bp);
     return addr;
   }
-
+  bn -= NINDIRECT;
+ 
+  if (bn < DOUBLENINDIRECT)
+  {
+    if ((addr = ip->addrs[NDIRECT+1]) == 0)
+    {
+      ip->addrs[NDIRECT+1] = addr = balloc(ip->dev);
+    }
+    bp = bread(ip->dev, addr);
+    a = (uint*)bp->data;// 第一个间接块
+    uint num = bn / NINDIRECT;// 第一个间接块偏移
+    uint off = bn % NINDIRECT;// 第二个间接块偏移
+    // 处理第一个间接块
+    if ((addr = a[num]) == 0)
+    {
+      a[num] = addr = balloc(ip->dev);
+      log_write(bp);
+    }
+    brelse(bp);
+    bp = bread(ip->dev, addr);
+    a = (uint*)bp->data;
+    // 处理第二个间接块
+    if ((addr = a[off]) == 0)
+    {
+      a[off] = addr = balloc(ip->dev);
+      log_write(bp);
+    }
+    brelse(bp);
+    return addr;
+  }
+  
+ 
   panic("bmap: out of range");
 }
 
@@ -409,17 +440,17 @@ bmap(struct inode *ip, uint bn)
 void
 itrunc(struct inode *ip)
 {
-  int i, j;
-  struct buf *bp;
-  uint *a;
-
+  int i, j, k;
+  struct buf *bp, *bp1;
+  uint *a, *b;
+ 
   for(i = 0; i < NDIRECT; i++){
     if(ip->addrs[i]){
       bfree(ip->dev, ip->addrs[i]);
       ip->addrs[i] = 0;
     }
   }
-
+ 
   if(ip->addrs[NDIRECT]){
     bp = bread(ip->dev, ip->addrs[NDIRECT]);
     a = (uint*)bp->data;
@@ -431,7 +462,32 @@ itrunc(struct inode *ip)
     bfree(ip->dev, ip->addrs[NDIRECT]);
     ip->addrs[NDIRECT] = 0;
   }
-
+ 
+  if (ip->addrs[NDIRECT+1])
+  {
+    bp = bread(ip->dev, ip->addrs[NDIRECT+1]);// 读入第一块间接块
+    a = (uint*)bp->data;
+    for (j = 0; j < NINDIRECT; j++)
+    {
+      if (a[j])
+      {
+        bp1 = bread(ip->dev, a[j]);// 读入第二间接块
+        b = (uint*)bp1->data;
+        for (k = 0; k < NINDIRECT; k++)
+        {
+          if (b[k])
+            bfree(ip->dev, b[k]);// 释放map上数据块映射
+        }
+        brelse(bp1);// 释放第二间接块的缓存块
+        bfree(ip->dev, a[j]);// 释放map上第二间接块的映射
+      }
+    }
+    brelse(bp);// 释放第一间接块的缓存块
+    bfree(ip->dev, ip->addrs[NDIRECT+1]);// 释放第一间接块的映射
+    ip->addrs[NDIRECT+1] = 0;
+  }
+  
+ 
   ip->size = 0;
   iupdate(ip);
 }
@@ -672,3 +728,4 @@ nameiparent(char *path, char *name)
 {
   return namex(path, 1, name);
 }
+
